@@ -6,7 +6,48 @@ import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { getFbVideoInfo } from 'fb-downloader-scrapper';
 import { downloadVideo } from '@cedricdsst/twitter-video-downloader';
-import ytdl from '@distube/ytdl-core';
+import axios from 'axios';
+import * as cheerio from 'cheerio';
+
+async function getTwitterVideoFormats(url: string) {
+  try {
+    const res = await axios.get(`https://twitsave.com/info?url=${encodeURIComponent(url)}`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36',
+      }
+    });
+    const $ = cheerio.load(res.data);
+    const formats: any[] = [];
+    $('.origin-top-right a').each((i, el) => {
+      const downloadUrl = $(el).attr('href');
+      const text = $(el).text().trim();
+      if (downloadUrl && downloadUrl.includes('?file=')) {
+        const base64Url = downloadUrl.split('?file=')[1];
+        try {
+          const decodedUrl = Buffer.from(decodeURIComponent(base64Url), 'base64').toString('utf-8');
+          if (decodedUrl.startsWith('http')) {
+            let quality = 'SD';
+            if (text.includes('1280x') || text.includes('1920x') || text.includes('720') || text.includes('1080')) {
+              quality = 'HD';
+            } else if (text.includes('Resolution:')) {
+              quality = text.split('Resolution:')[1].trim();
+            }
+            formats.push({
+              quality,
+              size: 'Unknown Size',
+              format: 'mp4',
+              directUrl: decodedUrl
+            });
+          }
+        } catch (e) {}
+      }
+    });
+    return formats;
+  } catch (e) {
+    console.error('Twitsave scrape error:', e);
+    return [];
+  }
+}
 
 async function startServer() {
   const app = express();
@@ -57,10 +98,9 @@ async function startServer() {
     try {
       const isFacebook = url.includes('facebook.com') || url.includes('fb.watch');
       const isTwitter = url.includes('twitter.com') || url.includes('x.com');
-      const isYouTube = url.includes('youtube.com') || url.includes('youtu.be');
 
-      if (!isFacebook && !isTwitter && !isYouTube) {
-        return res.status(400).json({ error: 'Currently, only Facebook, X (Twitter), and YouTube URLs are supported.' });
+      if (!isFacebook && !isTwitter) {
+        return res.status(400).json({ error: 'Currently, only Facebook and X (Twitter) URLs are supported.' });
       }
 
       const videoId = Buffer.from(url).toString('hex').substring(0, 12);
@@ -92,60 +132,32 @@ async function startServer() {
           });
         }
       } else if (isTwitter) {
-        const videoUrl = await downloadVideo(url);
-        if (!videoUrl) {
-          throw new Error('Could not resolve Twitter video URL');
-        }
         title = 'X (Twitter) Video';
-        formats.push({
-          quality: 'Default',
-          size: 'Unknown Size',
-          format: 'mp4',
-          url: `/dl/${videoId}?quality=default`,
-          directUrl: videoUrl
-        });
-      } else if (isYouTube) {
-        if (!ytdl.validateURL(url)) {
-          throw new Error('Invalid YouTube URL');
-        }
-        const info = await ytdl.getInfo(url);
-        title = info.videoDetails.title || 'YouTube Video';
+        const twitSaveFormats = await getTwitterVideoFormats(url);
         
-        const thumbnails = info.videoDetails.thumbnails;
-        if (thumbnails && thumbnails.length > 0) {
-          thumbnail = thumbnails[thumbnails.length - 1].url;
-        }
-
-        // Filter formats that have both video and audio
-        const videoFormats = ytdl.filterFormats(info.formats, 'videoandaudio');
-        
-        // Sort by resolution
-        videoFormats.sort((a, b) => {
-          const resA = parseInt(a.qualityLabel || '0');
-          const resB = parseInt(b.qualityLabel || '0');
-          return resB - resA;
-        });
-
-        // Take top 3 formats to avoid overwhelming the UI
-        const topFormats = videoFormats.slice(0, 3);
-        
-        if (topFormats.length === 0) {
-          // Fallback to video only if no combined formats found
-          const videoOnly = ytdl.filterFormats(info.formats, 'video');
-          if (videoOnly.length > 0) {
-            topFormats.push(videoOnly[0]);
-          }
-        }
-
-        topFormats.forEach((format, index) => {
-          formats.push({
-            quality: format.qualityLabel || 'Default',
-            size: format.contentLength ? `${(parseInt(format.contentLength) / (1024 * 1024)).toFixed(2)} MB` : 'Unknown Size',
-            format: format.container || 'mp4',
-            url: `/dl/${videoId}?quality=${format.itag}`,
-            directUrl: format.url
+        if (twitSaveFormats.length > 0) {
+          twitSaveFormats.forEach((f, idx) => {
+            formats.push({
+              quality: f.quality,
+              size: f.size,
+              format: f.format,
+              url: `/dl/${videoId}?quality=tw_${idx}`,
+              directUrl: f.directUrl
+            });
           });
-        });
+        } else {
+          const videoUrl = await downloadVideo(url);
+          if (!videoUrl) {
+            throw new Error('Could not resolve Twitter video URL');
+          }
+          formats.push({
+            quality: 'HD',
+            size: 'Unknown Size',
+            format: 'mp4',
+            url: `/dl/${videoId}?quality=default`,
+            directUrl: videoUrl
+          });
+        }
       }
 
       const videoData = {
@@ -226,42 +238,20 @@ async function startServer() {
     }
 
     try {
-      const url = videoData.url;
-      const isFacebook = url.includes('facebook.com') || url.includes('fb.watch');
-      const isTwitter = url.includes('twitter.com') || url.includes('x.com');
-      const isYouTube = url.includes('youtube.com') || url.includes('youtu.be');
-      
-      let downloadUrl = null;
-      let title = 'Video';
+      let downloadUrl = '';
+      let title = (videoData.title || 'Video').replace(/[^a-zA-Z0-9]/g, '_').substring(0, 50);
 
-      if (isFacebook) {
-        const info = await getFbVideoInfo(url);
-        title = (info.title || 'Facebook_Video').replace(/[^a-zA-Z0-9]/g, '_').substring(0, 50);
-        
-        downloadUrl = info.sd;
-        if (quality === 'hd' && info.hd) {
-          downloadUrl = info.hd;
-        } else if (quality === 'sd' && info.sd) {
-          downloadUrl = info.sd;
-        } else if (info.hd) {
-          downloadUrl = info.hd;
-        }
-      } else if (isTwitter) {
-        downloadUrl = await downloadVideo(url);
-        title = 'X_Twitter_Video';
-      } else if (isYouTube) {
-        const info = await ytdl.getInfo(url);
-        title = (info.videoDetails.title || 'YouTube_Video').replace(/[^a-zA-Z0-9]/g, '_').substring(0, 50);
-        
-        let format;
-        if (quality && quality !== 'default') {
-          format = ytdl.chooseFormat(info.formats, { quality: quality });
+      const format = videoData.formats.find((f: any) => f.url.includes(`quality=${quality}`));
+      if (format && format.directUrl) {
+        downloadUrl = format.directUrl;
+      } else {
+        // Fallback if not found in formats
+        const isFacebook = videoData.url.includes('facebook.com') || videoData.url.includes('fb.watch');
+        if (isFacebook) {
+          const info = await getFbVideoInfo(videoData.url);
+          downloadUrl = quality === 'hd' && info.hd ? info.hd : info.sd || info.hd;
         } else {
-          format = ytdl.chooseFormat(info.formats, { filter: 'videoandaudio' });
-        }
-        
-        if (format) {
-          downloadUrl = format.url;
+          downloadUrl = videoData.formats[0]?.directUrl;
         }
       }
 
