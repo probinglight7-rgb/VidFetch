@@ -233,6 +233,10 @@ async function startServer() {
         });
       }
 
+      if (title.length > 80) {
+        title = title.substring(0, 80) + '...';
+      }
+
       const videoData = {
         id: videoId,
         title,
@@ -318,7 +322,7 @@ async function startServer() {
         .replace(/[^a-zA-Z0-9\s]/g, '')
         .trim()
         .replace(/\s+/g, '_')
-        .substring(0, 100) || 'VideoFetch_Download';
+        .substring(0, 80) || 'VideoFetch_Download';
 
       const format = videoData.formats.find((f: any) => f.url.includes(`quality=${quality}`));
       if (format && format.directUrl) {
