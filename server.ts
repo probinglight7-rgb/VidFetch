@@ -8,7 +8,35 @@ import { getFbVideoInfo } from 'fb-downloader-scrapper';
 import { downloadVideo } from '@cedricdsst/twitter-video-downloader';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
-import ffmpeg from 'fluent-ffmpeg';
+
+async function getFacebookTitle(url: string): Promise<string> {
+  try {
+    const res = await axios.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36',
+        'Accept-Language': 'en-US,en;q=0.9'
+      },
+      timeout: 5000
+    });
+    const $ = cheerio.load(res.data);
+    let title = $('meta[property="og:description"]').attr('content') || 
+                $('meta[name="description"]').attr('content') || 
+                $('meta[property="og:title"]').attr('content') || 
+                $('title').text();
+    
+    if (title && !title.includes('Discover popular videos') && !title.includes('Facebook')) {
+      return title.trim();
+    }
+    
+    const match = res.data.match(/"text":"(.*?)"/);
+    if (match && match[1]) {
+        return match[1].replace(/\\u[\dA-F]{4}/gi, (m: string) => String.fromCharCode(parseInt(m.replace(/\\u/g, ''), 16)));
+    }
+  } catch (e) {
+    // Ignore
+  }
+  return '';
+}
 
 async function getFileSize(url: string): Promise<string> {
   try {
@@ -151,6 +179,14 @@ async function startServer() {
       if (isFacebook) {
         const info = await getFbVideoInfo(url);
         title = info.title || 'Facebook Video';
+        
+        if (title === 'Facebook Video' || title.includes('Discover popular videos')) {
+          const customTitle = await getFacebookTitle(url);
+          if (customTitle) {
+            title = customTitle;
+          }
+        }
+
         if (info.thumbnail) thumbnail = info.thumbnail;
         
         if (info.hd) {
@@ -210,27 +246,6 @@ async function startServer() {
             directUrl: videoUrl
           });
         }
-      }
-
-      // Add audio formats (proxying the best video stream as audio)
-      const bestVideo = formats.find(f => f.quality.includes('HD') || f.quality.includes('1080')) || formats[0];
-      if (bestVideo) {
-        formats.push({
-          quality: 'Audio Only',
-          size: bestVideo.size,
-          format: 'mp3',
-          type: 'audio',
-          url: `${bestVideo.url}&audio=mp3`,
-          directUrl: bestVideo.directUrl
-        });
-        formats.push({
-          quality: 'Audio Only',
-          size: bestVideo.size,
-          format: 'm4a',
-          type: 'audio',
-          url: `${bestVideo.url}&audio=m4a`,
-          directUrl: bestVideo.directUrl
-        });
       }
 
       if (title.length > 80) {
@@ -319,7 +334,7 @@ async function startServer() {
     try {
       let downloadUrl = '';
       let title = (videoData.title || 'Video')
-        .replace(/[^a-zA-Z0-9\s]/g, '')
+        .replace(/[\\/:*?"<>|]/g, '') // Remove invalid filename characters
         .trim()
         .replace(/\s+/g, '_')
         .substring(0, 80) || 'VideoFetch_Download';
@@ -356,37 +371,14 @@ async function startServer() {
       
       const ext = audio ? audio : 'mp4';
       // Use application/octet-stream to bypass WAF filters that might block video/mp4
-      res.header('Content-Disposition', `attachment; filename="${title}.${ext}"`);
+      res.header('Content-Disposition', `attachment; filename="${title}.${ext}"; filename*=UTF-8''${encodeURIComponent(title)}.${ext}`);
       res.header('Content-Type', 'application/octet-stream');
       res.header('Cache-Control', 'no-cache');
       
       // Do NOT send Content-Length to avoid potential WAF issues with large files
       // and to allow chunked transfer encoding
       
-      if (audio) {
-        // Convert to audio on the fly
-        let command = ffmpeg(response.data).noVideo();
-        
-        if (audio === 'm4a') {
-          command = command
-            .toFormat('mp4')
-            .audioCodec('aac')
-            .outputOptions('-movflags frag_keyframe+empty_moov');
-        } else {
-          command = command.toFormat(audio as string);
-        }
-
-        command
-          .on('error', (err) => {
-            console.error('FFmpeg Error:', err.message);
-            if (!res.headersSent) {
-              res.status(500).send('Audio conversion failed.');
-            }
-          })
-          .pipe(res, { end: true });
-      } else {
-        response.data.pipe(res);
-      }
+      response.data.pipe(res);
       
     } catch (error: any) {
       console.error('Download Error:', error.message || error);

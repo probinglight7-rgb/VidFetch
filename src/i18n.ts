@@ -23,7 +23,10 @@ const resources = {
       "language": "Language",
       "dark_mode": "Dark Mode",
       "light_mode": "Light Mode",
-      "refresh": "Refresh"
+      "refresh": "Refresh",
+      "instructions_title": "Download Instructions",
+      "instructions_computer": "Computer: Right click the desired download button and then click on \"Save link as...\"",
+      "instructions_mobile": "Mobile Phone: Tap and hold on the desired download button and then tap \"Download link\""
     }
   },
   ur: {
@@ -47,7 +50,10 @@ const resources = {
       "language": "زبان",
       "dark_mode": "ڈارک موڈ",
       "light_mode": "لائٹ موڈ",
-      "refresh": "تازہ کریں"
+      "refresh": "تازہ کریں",
+      "instructions_title": "ڈاؤن لوڈ کرنے کی ہدایات",
+      "instructions_computer": "کمپیوٹر: مطلوبہ ڈاؤن لوڈ بٹن پر دائیں کلک کریں اور پھر \"Save link as...\" پر کلک کریں۔",
+      "instructions_mobile": "موبائل فون: مطلوبہ ڈاؤن لوڈ بٹن پر ٹیپ کریں اور دبائے رکھیں اور پھر \"Download link\" پر ٹیپ کریں۔"
     }
   }
 };

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, Loader2, Download, AlertCircle, FileVideo, FileAudio, Clock, HardDrive, RefreshCw } from 'lucide-react';
+import { Search, Loader2, Download, AlertCircle, FileVideo, Clock, HardDrive, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface VideoFormat {
@@ -92,7 +92,6 @@ export default function Home() {
   };
 
   const videoFormats = videoData?.formats.filter(f => f.type === 'video') || [];
-  const audioFormats = videoData?.formats.filter(f => f.type === 'audio') || [];
 
   return (
     <div className="flex-grow flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
@@ -254,51 +253,34 @@ export default function Home() {
                         ))}
                       </div>
                     )}
-
-                    {/* Audio Formats */}
-                    {audioFormats.length > 0 && (
-                      <div className="space-y-3">
-                        <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Audio Only</h3>
-                        {audioFormats.map((format, index) => (
-                          <div 
-                            key={`audio-${index}`} 
-                            className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-800 hover:border-purple-300 dark:hover:border-purple-700 transition-colors"
-                          >
-                            <div className="flex items-center gap-4">
-                              <div className="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 p-2 rounded-lg">
-                                <FileAudio size={20} />
-                              </div>
-                              <div>
-                                <p className="font-bold text-gray-900 dark:text-white">{format.quality}</p>
-                                <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                                  <span className="uppercase">{format.format}</span>
-                                  <span>•</span>
-                                  <span className="flex items-center gap-1"><HardDrive size={10}/> {format.size}</span>
-                                </div>
-                              </div>
-                            </div>
-                            
-                            <div className="flex flex-col gap-2 items-end">
-                              <a 
-                                href={format.directUrl || format.url} 
-                                target="_blank" 
-                                rel="noreferrer"
-                                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium text-sm transition-colors flex items-center gap-2"
-                              >
-                                <Download size={16} />
-                                <span className="hidden sm:inline">{t('download')}</span>
-                              </a>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Download Instructions */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.4 }}
+          className="bg-gray-50 dark:bg-gray-800/50 rounded-2xl p-6 border border-gray-100 dark:border-gray-800 mt-12"
+        >
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
+            {t('instructions_title')}
+          </h3>
+          <ul className="space-y-3 text-gray-600 dark:text-gray-300 text-sm">
+            <li className="flex items-start gap-2">
+              <span className="font-semibold text-gray-900 dark:text-white shrink-0">💻</span>
+              <span>{t('instructions_computer')}</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="font-semibold text-gray-900 dark:text-white shrink-0">📱</span>
+              <span>{t('instructions_mobile')}</span>
+            </li>
+          </ul>
+        </motion.div>
       </div>
     </div>
   );
