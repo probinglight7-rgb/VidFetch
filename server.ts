@@ -8,6 +8,7 @@ import { getFbVideoInfo } from 'fb-downloader-scrapper';
 import { downloadVideo } from '@cedricdsst/twitter-video-downloader';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import ffmpeg from 'fluent-ffmpeg';
 
 async function getFileSize(url: string): Promise<string> {
   try {
@@ -217,17 +218,17 @@ async function startServer() {
         formats.push({
           quality: 'Audio Only',
           size: bestVideo.size,
-          format: 'm4a',
+          format: 'mp3',
           type: 'audio',
-          url: `${bestVideo.url}&audio=m4a`,
+          url: `${bestVideo.url}&audio=mp3`,
           directUrl: bestVideo.directUrl
         });
         formats.push({
           quality: 'Audio Only',
           size: bestVideo.size,
-          format: 'mp3',
+          format: 'm4a',
           type: 'audio',
-          url: `${bestVideo.url}&audio=mp3`,
+          url: `${bestVideo.url}&audio=m4a`,
           directUrl: bestVideo.directUrl
         });
       }
@@ -358,7 +359,30 @@ async function startServer() {
       // Do NOT send Content-Length to avoid potential WAF issues with large files
       // and to allow chunked transfer encoding
       
-      response.data.pipe(res);
+      if (audio) {
+        // Convert to audio on the fly
+        let command = ffmpeg(response.data).noVideo();
+        
+        if (audio === 'm4a') {
+          command = command
+            .toFormat('mp4')
+            .audioCodec('aac')
+            .outputOptions('-movflags frag_keyframe+empty_moov');
+        } else {
+          command = command.toFormat(audio as string);
+        }
+
+        command
+          .on('error', (err) => {
+            console.error('FFmpeg Error:', err.message);
+            if (!res.headersSent) {
+              res.status(500).send('Audio conversion failed.');
+            }
+          })
+          .pipe(res, { end: true });
+      } else {
+        response.data.pipe(res);
+      }
       
     } catch (error: any) {
       console.error('Download Error:', error.message || error);
