@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, Loader2, Download, AlertCircle, FileVideo, Clock, HardDrive, RefreshCw } from 'lucide-react';
+import { Search, Loader2, Download, AlertCircle, FileVideo, FileAudio, Clock, HardDrive, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface VideoFormat {
   quality: string;
   size: string;
   format: string;
+  type: string;
   url: string;
   directUrl?: string;
 }
@@ -14,6 +15,7 @@ interface VideoFormat {
 interface VideoData {
   id: string;
   title: string;
+  source: string;
   thumbnail: string;
   duration: string;
   url: string;
@@ -89,6 +91,9 @@ export default function Home() {
     setError('');
   };
 
+  const videoFormats = videoData?.formats.filter(f => f.type === 'video') || [];
+  const audioFormats = videoData?.formats.filter(f => f.type === 'audio') || [];
+
   return (
     <div className="flex-grow flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
       {/* Background decoration */}
@@ -102,7 +107,7 @@ export default function Home() {
             animate={{ opacity: 1, y: 0 }}
             className="text-4xl md:text-6xl font-extrabold tracking-tight text-gray-900 dark:text-white"
           >
-            {t('hero_title')}
+            VideoFetch
           </motion.h1>
           <motion.p 
             initial={{ opacity: 0, y: 20 }}
@@ -201,43 +206,93 @@ export default function Home() {
 
                 {/* Details & Formats Section */}
                 <div className="md:w-3/5 p-6 flex flex-col">
-                  <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6 line-clamp-2" title={videoData.title}>
-                    {videoData.title}
-                  </h2>
+                  <div className="mb-4">
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white line-clamp-2" title={videoData.title}>
+                      {videoData.title}
+                    </h2>
+                    <p className="text-sm text-blue-600 dark:text-blue-400 font-medium mt-1">
+                      Source: {videoData.source}
+                    </p>
+                  </div>
 
-                  <div className="space-y-3 flex-grow">
-                    {videoData.formats.map((format, index) => (
-                      <div 
-                        key={index} 
-                        className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-800 hover:border-blue-300 dark:hover:border-blue-700 transition-colors"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 p-2 rounded-lg">
-                            <FileVideo size={20} />
-                          </div>
-                          <div>
-                            <p className="font-bold text-gray-900 dark:text-white">{format.quality}</p>
-                            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                              <span className="uppercase">{format.format}</span>
-                              <span>•</span>
-                              <span className="flex items-center gap-1"><HardDrive size={10}/> {format.size}</span>
+                  <div className="space-y-6 flex-grow">
+                    {/* Video Formats */}
+                    {videoFormats.length > 0 && (
+                      <div className="space-y-3">
+                        <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Select Quality</h3>
+                        {videoFormats.map((format, index) => (
+                          <div 
+                            key={`video-${index}`} 
+                            className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-800 hover:border-blue-300 dark:hover:border-blue-700 transition-colors"
+                          >
+                            <div className="flex items-center gap-4">
+                              <div className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 p-2 rounded-lg">
+                                <FileVideo size={20} />
+                              </div>
+                              <div>
+                                <p className="font-bold text-gray-900 dark:text-white">{format.quality}</p>
+                                <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                  <span className="uppercase">{format.format}</span>
+                                  <span>•</span>
+                                  <span className="flex items-center gap-1"><HardDrive size={10}/> {format.size}</span>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            <div className="flex flex-col gap-2 items-end">
+                              <a 
+                                href={format.directUrl || format.url} 
+                                target="_blank" 
+                                rel="noreferrer"
+                                className="px-4 py-2 bg-gray-900 hover:bg-gray-800 dark:bg-white dark:hover:bg-gray-100 text-white dark:text-gray-900 rounded-lg font-medium text-sm transition-colors flex items-center gap-2"
+                              >
+                                <Download size={16} />
+                                <span className="hidden sm:inline">{t('download')}</span>
+                              </a>
                             </div>
                           </div>
-                        </div>
-                        
-                        <div className="flex flex-col gap-2 items-end">
-                          <a 
-                            href={format.directUrl || format.url} 
-                            target="_blank" 
-                            rel="noreferrer"
-                            className="px-4 py-2 bg-gray-900 hover:bg-gray-800 dark:bg-white dark:hover:bg-gray-100 text-white dark:text-gray-900 rounded-lg font-medium text-sm transition-colors flex items-center gap-2"
-                          >
-                            <Download size={16} />
-                            <span className="hidden sm:inline">{t('download')}</span>
-                          </a>
-                        </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
+
+                    {/* Audio Formats */}
+                    {audioFormats.length > 0 && (
+                      <div className="space-y-3">
+                        <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Audio Only</h3>
+                        {audioFormats.map((format, index) => (
+                          <div 
+                            key={`audio-${index}`} 
+                            className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-800 hover:border-purple-300 dark:hover:border-purple-700 transition-colors"
+                          >
+                            <div className="flex items-center gap-4">
+                              <div className="bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 p-2 rounded-lg">
+                                <FileAudio size={20} />
+                              </div>
+                              <div>
+                                <p className="font-bold text-gray-900 dark:text-white">{format.quality}</p>
+                                <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                  <span className="uppercase">{format.format}</span>
+                                  <span>•</span>
+                                  <span className="flex items-center gap-1"><HardDrive size={10}/> {format.size}</span>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            <div className="flex flex-col gap-2 items-end">
+                              <a 
+                                href={format.directUrl || format.url} 
+                                target="_blank" 
+                                rel="noreferrer"
+                                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium text-sm transition-colors flex items-center gap-2"
+                              >
+                                <Download size={16} />
+                                <span className="hidden sm:inline">{t('download')}</span>
+                              </a>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

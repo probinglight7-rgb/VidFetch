@@ -4,7 +4,7 @@ import { initReactI18next } from 'react-i18next';
 const resources = {
   en: {
     translation: {
-      "app_name": "VidFetch",
+      "app_name": "VideoFetch",
       "hero_title": "Download Facebook, X & YouTube Videos",
       "hero_subtitle": "Fast, free, and secure video downloader for Facebook, X (Twitter), and YouTube.",
       "paste_url": "Paste Facebook, X, or YouTube video URL here...",
@@ -28,7 +28,7 @@ const resources = {
   },
   ur: {
     translation: {
-      "app_name": "VidFetch",
+      "app_name": "VideoFetch",
       "hero_title": "فیس بک، ایکس اور یوٹیوب ویڈیوز ڈاؤن لوڈ کریں",
       "hero_subtitle": "خاص طور پر فیس بک، ایکس (ٹویٹر) اور یوٹیوب کے لیے تیز، مفت اور محفوظ ویڈیو ڈاؤنلوڈر۔",
       "paste_url": "فیس بک، ایکس، یا یوٹیوب ویڈیو کا یو آر ایل یہاں پیسٹ کریں...",

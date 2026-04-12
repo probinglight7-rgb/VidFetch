@@ -9,6 +9,31 @@ import { downloadVideo } from '@cedricdsst/twitter-video-downloader';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 
+async function getFileSize(url: string): Promise<string> {
+  try {
+    const res = await axios.head(url, { timeout: 5000 });
+    const size = res.headers['content-length'];
+    if (size) {
+      const bytes = parseInt(size, 10);
+      const mb = (bytes / (1024 * 1024)).toFixed(2);
+      return `${mb} MB`;
+    }
+  } catch (e) {
+    // Ignore errors for HEAD requests
+  }
+  return 'Unknown Size';
+}
+
+function mapQualityLabel(quality: string): string {
+  const q = quality.toLowerCase();
+  if (q.includes('1080') || q.includes('1920')) return '1080p Full HD';
+  if (q.includes('720') || q === 'hd') return '720p HD';
+  if (q.includes('480') || q === 'sd') return '480p SD';
+  if (q.includes('360')) return '360p SD';
+  if (q.includes('270') || q.includes('240')) return '240p Low';
+  return quality;
+}
+
 async function getTwitterVideoFormats(url: string) {
   try {
     const res = await axios.get(`https://twitsave.com/info?url=${encodeURIComponent(url)}`, {
@@ -111,8 +136,9 @@ async function startServer() {
       }
 
       const videoId = Buffer.from(url).toString('hex').substring(0, 12);
-      const formats = [];
+      const formats: any[] = [];
       let title = 'Video';
+      let source = isFacebook ? 'Facebook' : 'X (Twitter)';
       let thumbnail = `https://picsum.photos/seed/${videoId}/640/360`;
 
       if (isFacebook) {
@@ -122,18 +148,20 @@ async function startServer() {
         
         if (info.hd) {
           formats.push({
-            quality: 'HD',
-            size: 'Unknown Size',
+            quality: mapQualityLabel('HD'),
+            size: await getFileSize(info.hd),
             format: 'mp4',
+            type: 'video',
             url: `/dl/${videoId}?quality=hd`,
             directUrl: info.hd
           });
         }
         if (info.sd) {
           formats.push({
-            quality: 'SD',
-            size: 'Unknown Size',
+            quality: mapQualityLabel('SD'),
+            size: await getFileSize(info.sd),
             format: 'mp4',
+            type: 'video',
             url: `/dl/${videoId}?quality=sd`,
             directUrl: info.sd
           });
@@ -147,38 +175,63 @@ async function startServer() {
         }
 
         if (twitSaveFormats.length > 0) {
-          twitSaveFormats.forEach((f, idx) => {
+          for (let idx = 0; idx < twitSaveFormats.length; idx++) {
+            const f = twitSaveFormats[idx];
             formats.push({
-              quality: f.quality,
-              size: f.size,
+              quality: mapQualityLabel(f.quality),
+              size: await getFileSize(f.directUrl),
               format: f.format,
+              type: 'video',
               url: `/dl/${videoId}?quality=tw_${idx}`,
               directUrl: f.directUrl
             });
-          });
+          }
         } else {
           const videoUrl = await downloadVideo(url);
           if (!videoUrl) {
             throw new Error('Could not resolve Twitter video URL');
           }
           formats.push({
-            quality: 'HD',
-            size: 'Unknown Size',
+            quality: mapQualityLabel('HD'),
+            size: await getFileSize(videoUrl),
             format: 'mp4',
+            type: 'video',
             url: `/dl/${videoId}?quality=default`,
             directUrl: videoUrl
           });
         }
       }
 
+      // Add audio formats (proxying the best video stream as audio)
+      const bestVideo = formats.find(f => f.quality.includes('HD') || f.quality.includes('1080')) || formats[0];
+      if (bestVideo) {
+        formats.push({
+          quality: 'Audio Only',
+          size: bestVideo.size,
+          format: 'm4a',
+          type: 'audio',
+          url: `${bestVideo.url}&audio=m4a`,
+          directUrl: bestVideo.directUrl
+        });
+        formats.push({
+          quality: 'Audio Only',
+          size: bestVideo.size,
+          format: 'mp3',
+          type: 'audio',
+          url: `${bestVideo.url}&audio=mp3`,
+          directUrl: bestVideo.directUrl
+        });
+      }
+
       const videoData = {
         id: videoId,
         title,
+        source,
         thumbnail,
         duration: 'Unknown',
         url: url,
         formats: formats.length > 0 ? formats : [
-          { quality: 'Default', size: 'Unknown', format: 'mp4', url: `/dl/${videoId}?quality=default` }
+          { quality: 'Default', size: 'Unknown Size', format: 'mp4', type: 'video', url: `/dl/${videoId}?quality=default` }
         ]
       };
 
@@ -220,9 +273,9 @@ async function startServer() {
 
   app.get('/dl/:id', async (req, res) => {
     const { id } = req.params;
-    const { quality, fallback } = req.query;
+    const { quality, fallback, audio } = req.query;
     
-    console.log(`Download request: ID=${id}, Quality=${quality}, Fallback=${fallback}`);
+    console.log(`Download request: ID=${id}, Quality=${quality}, Fallback=${fallback}, Audio=${audio}`);
 
     const videoData = videoCache.get(id);
     
@@ -239,7 +292,8 @@ async function startServer() {
           url: sampleVideoUrl,
           responseType: 'stream'
         });
-        res.header('Content-Disposition', `attachment; filename="Facebook_Demo_Video.mp4"`);
+        const ext = audio ? audio : 'mp4';
+        res.header('Content-Disposition', `attachment; filename="Demo_Video.${ext}"`);
         res.header('Content-Type', 'application/octet-stream');
         response.data.pipe(res);
         return;
@@ -282,8 +336,9 @@ async function startServer() {
         timeout: 15000
       });
       
+      const ext = audio ? audio : 'mp4';
       // Use application/octet-stream to bypass WAF filters that might block video/mp4
-      res.header('Content-Disposition', `attachment; filename="${title}.mp4"`);
+      res.header('Content-Disposition', `attachment; filename="${title}.${ext}"`);
       res.header('Content-Type', 'application/octet-stream');
       res.header('Cache-Control', 'no-cache');
       
