@@ -18,6 +18,13 @@ async function getTwitterVideoFormats(url: string) {
     });
     const $ = cheerio.load(res.data);
     const formats: any[] = [];
+    
+    let thumbnail = '';
+    const poster = $('video').attr('poster');
+    if (poster) {
+      thumbnail = poster;
+    }
+
     $('.origin-top-right a').each((i, el) => {
       const downloadUrl = $(el).attr('href');
       const text = $(el).text().trim();
@@ -42,16 +49,16 @@ async function getTwitterVideoFormats(url: string) {
         } catch (e) {}
       }
     });
-    return formats;
+    return { formats, thumbnail };
   } catch (e) {
     console.error('Twitsave scrape error:', e);
-    return [];
+    return { formats: [], thumbnail: '' };
   }
 }
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT || 3000;
 
   // Trust the reverse proxy (required for rate limiting behind Cloud Run/Nginx)
   app.set('trust proxy', 1);
@@ -133,8 +140,12 @@ async function startServer() {
         }
       } else if (isTwitter) {
         title = 'X (Twitter) Video';
-        const twitSaveFormats = await getTwitterVideoFormats(url);
+        const { formats: twitSaveFormats, thumbnail: twitSaveThumbnail } = await getTwitterVideoFormats(url);
         
+        if (twitSaveThumbnail) {
+          thumbnail = twitSaveThumbnail;
+        }
+
         if (twitSaveFormats.length > 0) {
           twitSaveFormats.forEach((f, idx) => {
             formats.push({
