@@ -94,12 +94,12 @@ export default function Home() {
   const videoFormats = videoData?.formats.filter(f => f.type === 'video') || [];
 
   return (
-    <div className="flex-grow flex flex-col items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+    <div className="flex-grow flex flex-col items-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-x-hidden">
       {/* Background decoration */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-blue-500/10 dark:bg-blue-500/5 blur-3xl pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-purple-500/10 dark:bg-purple-500/5 blur-3xl pointer-events-none" />
 
-      <div className="w-full max-w-3xl z-10 space-y-12">
+      <div className="w-full max-w-3xl z-10 space-y-12 my-auto">
         <div className="text-center space-y-4">
           <motion.h1 
             initial={{ opacity: 0, y: 20 }}
