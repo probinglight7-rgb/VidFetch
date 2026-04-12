@@ -50,6 +50,12 @@ async function getTwitterVideoFormats(url: string) {
       thumbnail = poster;
     }
 
+    let title = '';
+    const pText = $('p').first().text().trim();
+    if (pText) {
+      title = pText;
+    }
+
     $('.origin-top-right a').each((i, el) => {
       const downloadUrl = $(el).attr('href');
       const text = $(el).text().trim();
@@ -74,10 +80,10 @@ async function getTwitterVideoFormats(url: string) {
         } catch (e) {}
       }
     });
-    return { formats, thumbnail };
+    return { formats, thumbnail, title };
   } catch (e) {
     console.error('Twitsave scrape error:', e);
-    return { formats: [], thumbnail: '' };
+    return { formats: [], thumbnail: '', title: '' };
   }
 }
 
@@ -168,10 +174,13 @@ async function startServer() {
         }
       } else if (isTwitter) {
         title = 'X (Twitter) Video';
-        const { formats: twitSaveFormats, thumbnail: twitSaveThumbnail } = await getTwitterVideoFormats(url);
+        const { formats: twitSaveFormats, thumbnail: twitSaveThumbnail, title: twitSaveTitle } = await getTwitterVideoFormats(url);
         
         if (twitSaveThumbnail) {
           thumbnail = twitSaveThumbnail;
+        }
+        if (twitSaveTitle) {
+          title = twitSaveTitle;
         }
 
         if (twitSaveFormats.length > 0) {
@@ -304,7 +313,11 @@ async function startServer() {
 
     try {
       let downloadUrl = '';
-      let title = (videoData.title || 'Video').replace(/[^a-zA-Z0-9]/g, '_').substring(0, 50);
+      let title = (videoData.title || 'Video')
+        .replace(/[^a-zA-Z0-9\s]/g, '')
+        .trim()
+        .replace(/\s+/g, '_')
+        .substring(0, 100) || 'VideoFetch_Download';
 
       const format = videoData.formats.find((f: any) => f.url.includes(`quality=${quality}`));
       if (format && format.directUrl) {
